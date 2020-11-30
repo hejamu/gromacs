@@ -164,7 +164,7 @@ void LegacySimulator::do_tpi()
 
     gmx_localtop_t              top;
     PaddedHostVector<gmx::RVec> f{};
-    real                        lambda, t, temp, beta, drmax, epot;
+    real                        lambda, t, temp, beta, drmax, drmaxz, epot;
     double                      embU, sum_embU, *sum_UgembU, V, V_all, VembU_all;
     t_trxstatus*                status;
     t_trxframe                  rerun_fr;
@@ -189,6 +189,7 @@ void LegacySimulator::do_tpi()
     gmx_bool                    bEnergyOutOfBounds;
     const char*                 tpid_leg[2] = { "direct", "reweighted" };
     auto                        mdatoms     = mdAtoms->mdatoms();
+    double                      zmin=0, zmax=state_global->box[ZZ][ZZ];
 
     GMX_UNUSED_VALUE(outputProvider);
 
@@ -244,7 +245,7 @@ void LegacySimulator::do_tpi()
        init_em(fplog,TPI,inputrec,&lambda,nrnb,mu_tot,
        state_global->box,fr,mdatoms,top,cr,nfile,fnm,NULL,NULL);*/
     /* We never need full pbc for TPI */
-    fr->ePBC = epbcXYZ;
+    //fr->ePBC = epbcXYZ;
     /* Determine the temperature for the Boltzmann weighting */
     temp = inputrec->opts.ref_t[0];
     if (fplog)
@@ -400,6 +401,26 @@ void LegacySimulator::do_tpi()
                         inputrec->nstlist, drmax);
             }
         }
+        /*insertion in slab from zmin to zmax*/
+        if (inputrec->tpizmin >= 0) {
+            zmin = inputrec->tpizmin;
+        }
+        if ( ( (inputrec->tpizmax >= 0) && (inputrec->tpizmax <= state_global->box[ZZ][ZZ]) ) || fr->ePBC != epbcXYZ) {
+            zmax = inputrec->tpizmax;
+        }
+        if (zmin > zmax) {
+            gmx_fatal(FARGS,"Cannot insert from %f to %f\n",zmin,zmax);
+        }
+        else {
+            fprintf(stderr, "Test Particle Insertion from zmin: %f to zmax: %f\n",zmin,zmax);
+        }
+        if (drmax < (zmax-zmin)) {
+            drmaxz = drmax;
+        }
+        else {
+            drmaxz = zmax - zmin;
+        }
+        /*slab modification end*/
     }
     else
     {
@@ -612,9 +633,23 @@ void LegacySimulator::do_tpi()
                 if (bNS)
                 {
                     /* Generate a random position in the box */
-                    for (d = 0; d < DIM; d++)
-                    {
-                        x_init[d] = dist(rng) * state_global->box[d][d];
+                    x_init[0] = dist(rng) * state_global->box[0][0];
+                    x_init[1] = dist(rng) * state_global->box[1][1];
+                    /* Slab insertion in z-coordinate */
+                    if (inputrec->tpizmax > state_global->box[ZZ][ZZ]) {
+                        zmax = state_global->box[ZZ][ZZ];
+                    }
+                    else {
+                        zmax = inputrec->tpizmax;
+                    }
+                    if (zmin > zmax) {
+                        gmx_fatal(FARGS,"Cannot insert from %f to %f\n",zmin,zmax);
+                    }
+                    if (zmin == zmax) {
+                        x_init[ZZ] = zmin;
+                    }
+                    else {
+                        x_init[ZZ] = zmin + dist(rng)*(zmax-zmin);
                     }
                 }
             }
@@ -685,7 +720,8 @@ void LegacySimulator::do_tpi()
                     {
                         dx[d] = (2 * dist(rng) - 1) * drmax;
                     }
-                } while (norm2(dx) > drmax * drmax);
+                } while (norm2(dx) > drmax*drmax &&
+                         (x_init[ZZ]-dx[ZZ]) >= zmin && (x_init[ZZ]+dx[ZZ]) <= zmax);
                 rvec_add(x_init, dx, x_tp);
             }
             else

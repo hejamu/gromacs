@@ -425,6 +425,10 @@ struct t_inputrec // NOLINT (clang-analyzer-optin.performance.Padding)
     real rlist;
     //! Radius for test particle insertion
     real rtpi;
+    //! z-min value for test particle insertion
+    real tpizmin;
+    //! z-max value for test particle insertion
+    real tpizmax;
     //! Type of electrostatics treatment
     int coulombtype;
     //! Modify the Coulomb interaction

@@ -167,7 +167,7 @@ void LegacySimulator::do_tpi()
 
     gmx_localtop_t    top(top_global->ffparams);
     gmx::ForceBuffers f;
-    real              lambda, t, temp, beta, drmax, drmaxz, epot;
+    real              lambda, t, temp, beta, drmax, epot;
     double            embU, sum_embU, *sum_UgembU, V, V_all, VembU_all;
     t_trxstatus*      status;
     t_trxframe        rerun_fr;
@@ -431,12 +431,14 @@ void LegacySimulator::do_tpi()
         else {
             fprintf(stderr, "Test Particle Insertion from zmin: %f to zmax: %f\n",zmin,zmax);
         }
-        if (drmax < (zmax-zmin)) {
-            drmaxz = drmax;
-        }
-        else {
-            drmaxz = zmax - zmin;
-        }
+        /* What is this for?
+        * if (drmax < (zmax-zmin)) {
+        *     drmaxz = drmax;
+        * }
+        * else {
+        *     drmaxz = zmax - zmin;
+        * }
+        */
         /*slab modification end*/
     }
     else

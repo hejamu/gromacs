@@ -2500,6 +2500,8 @@ void get_ir(const char*     mdparin,
     {
         gmx_fatal(FARGS, "Minimum z coordinate for insertion cannot be larger than maximum");
     }
+    /* Modified test particle insertion with dissociated atoms */
+    ir->bDissTPI = (get_eeenum(&inp, "tpi-diss", yesno_names, wi) != 0);
 
 #undef CTYPE
 

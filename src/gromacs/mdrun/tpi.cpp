@@ -193,6 +193,7 @@ void LegacySimulator::do_tpi()
     const char*       tpid_leg[2] = { "direct", "reweighted" };
     auto              mdatoms     = mdAtoms->mdatoms();
     double            zmin=0, zmax=state_global->box[ZZ][ZZ];
+    gmx_bool          dissociate;
 
     GMX_UNUSED_VALUE(outputProvider);
 
@@ -325,7 +326,7 @@ void LegacySimulator::do_tpi()
         gmx_pme_reinit_atoms(fr->pmedata, a_tp0, nullptr, nullptr);
     }
 
-    /* With reacion-field we have distance dependent potentials
+    /* With reaction-field we have distance dependent potentials
      * between excluded atoms, we need to add these separately
      * for the inserted molecule.
      */
@@ -415,6 +416,10 @@ void LegacySimulator::do_tpi()
                         inputrec->nstlist, drmax);
             }
         }
+
+        /* find seperate insertion locations for each atom in the residue. Useful for ion pairs */
+        dissociate = inputrec->bDissTPI;
+
 
         /*insertion in slab from zmin to zmax*/
         if (inputrec->tpizmin >= 0)
@@ -740,6 +745,32 @@ void LegacySimulator::do_tpi()
             {
                 /* Insert a single atom, just copy the insertion location */
                 copy_rvec(x_tp, x[a_tp0]);
+            }
+            else if (dissociate)
+            {
+                /* insert atoms in a residue at independent positions */
+                for (i = a_tp0; i < a_tp1; i++)
+                {
+                    x_init[0] = dist(rng) * state_global->box[0][0];
+                    x_init[1] = dist(rng) * state_global->box[1][1];
+                    /* Slab insertion in z-coordinate */
+                    x_init[ZZ] = zmin + dist(rng)*(zmax-zmin);
+                    if (bCavity || inputrec->nstlist > 1)
+                    {
+                        /* Generate coordinates within |dx|=drmax of x_init */
+                        do
+                        {
+                            for (d = 0; d < DIM; d++)
+                            {
+                                dx[d] = (2 * dist(rng) - 1) * drmax;
+                            }
+                        } while (norm2(dx) > drmax*drmax &&
+                                 (x_init[ZZ]-dx[ZZ]) >= zmin && (x_init[ZZ]+dx[ZZ]) <= zmax);
+                        rvec_add(x_init, dx, x_tp);
+                    }
+                    copy_rvec(x_tp, x[i - a_tp0]);
+                }
+
             }
             else
             {

@@ -418,6 +418,8 @@ struct t_inputrec // NOLINT (clang-analyzer-optin.performance.Padding)
     real tpizmin;
     //! z-max value for test particle insertion
     real tpizmax;
+    //! boolean for dissociated test particle insertion
+    bool bDissTPI;
     //! Type of electrostatics treatment
     int coulombtype;
     //! Modify the Coulomb interaction

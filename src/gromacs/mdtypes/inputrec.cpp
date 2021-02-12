@@ -1044,6 +1044,9 @@ void pr_inputrec(FILE* fp, int indent, const char* title, const t_inputrec* ir, 
         PR("userreal4", ir->userreal4);
         PR("tpizmin", ir->tpizmin);
         PR("tpizmax", ir->tpizmax);
+
+        PS("bDissTPI", EBOOL(ir->bDissTPI));
+
         if (!bMDPformat)
         {
             gmx::TextWriter writer(fp);
@@ -1448,6 +1451,9 @@ void cmp_inputrec(FILE* fp, const t_inputrec* ir1, const t_inputrec* ir2, real f
 
     cmp_real(fp, "inputrec->tpizmin", -1, ir1->tpizmin, ir2->tpizmin, ftol, abstol);
     cmp_real(fp, "inputrec->tpizmax", -1, ir1->tpizmax, ir2->tpizmax, ftol, abstol);
+
+    cmp_bool(fp, "inputrec->bDissTPI", -1, ir1->bDissTPI, ir2->bDissTPI);
+
     cmp_grpopts(fp, &(ir1->opts), &(ir2->opts), ftol, abstol);
     gmx::TextWriter writer(fp);
     gmx::compareKeyValueTrees(&writer, *ir1->params, *ir2->params, ftol, abstol);

@@ -1435,6 +1435,7 @@ static void do_inputrec(gmx::ISerializer* serializer, t_inputrec* ir, int file_v
 
     serializer->doReal(&ir->tpizmin);
     serializer->doReal(&ir->tpizmax);
+    serializer->doBool(&ir->bDissTPI);
 
     /* AdResS is removed, but we need to be able to read old files,
        and let mdrun refuse to run them */

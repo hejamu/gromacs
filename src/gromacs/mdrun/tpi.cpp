@@ -415,11 +415,14 @@ void LegacySimulator::do_tpi()
                         inputrec->nstlist, drmax);
             }
         }
+
         /*insertion in slab from zmin to zmax*/
-        if (inputrec->tpizmin >= 0) {
+        if (inputrec->tpizmin >= 0)
+        {
             zmin = inputrec->tpizmin;
         }
-        if ( ( (inputrec->tpizmax >= 0) && (inputrec->tpizmax <= state_global->box[ZZ][ZZ]) ) || fr->pbcType != PbcType::Xyz) {
+        if ( ( (inputrec->tpizmax > 0) && (inputrec->tpizmax <= state_global->box[ZZ][ZZ]) ) || fr->pbcType != PbcType::Xyz)
+        {
             zmax = inputrec->tpizmax;
         }
         if (zmin > zmax) {
@@ -650,21 +653,7 @@ void LegacySimulator::do_tpi()
                     x_init[0] = dist(rng) * state_global->box[0][0];
                     x_init[1] = dist(rng) * state_global->box[1][1];
                     /* Slab insertion in z-coordinate */
-                    if (inputrec->tpizmax > state_global->box[ZZ][ZZ]) {
-                        zmax = state_global->box[ZZ][ZZ];
-                    }
-                    else {
-                        zmax = inputrec->tpizmax;
-                    }
-                    if (zmin > zmax) {
-                        gmx_fatal(FARGS,"Cannot insert from %f to %f\n",zmin,zmax);
-                    }
-                    if (zmin == zmax) {
-                        x_init[ZZ] = zmin;
-                    }
-                    else {
-                        x_init[ZZ] = zmin + dist(rng)*(zmax-zmin);
-                    }
+                    x_init[ZZ] = zmin + dist(rng)*(zmax-zmin);
                 }
             }
             else

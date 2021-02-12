@@ -696,12 +696,12 @@ void check_ir(const char*                   mdparin,
     if (EI_TPI(ir->eI))
     {
         /* we only use uncharge test particles, so it should be safe to use also pbc = xy */
-        //sprintf(err_buf, "TPI only works with pbc = %s", epbc_names[epbcXYZ]);
-        if(ir->ePBC != epbcXYZ)
+        //sprintf(err_buf, "TPI only works with pbc = %s", c_pbcTypeNames[PbcType::Xyz].c_str());
+        if(ir->pbcType != PbcType::Xyz)
         {
             sprintf(warn_buf, "Using TPI with pbc = %s\n This will make trouble"
                               "with electrostatics (use cut-off for neutral molecules only). Make"
-                              "sure you know what you're doing!", epbc_names[epbcXY]);
+                              "sure you know what you're doing!", c_pbcTypeNames[PbcType::XY].c_str());
             warning(wi, warn_buf);
         }
         //CHECK(ir->ePBC != epbcXYZ);

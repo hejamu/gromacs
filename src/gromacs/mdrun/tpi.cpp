@@ -419,7 +419,7 @@ void LegacySimulator::do_tpi()
         if (inputrec->tpizmin >= 0) {
             zmin = inputrec->tpizmin;
         }
-        if ( ( (inputrec->tpizmax >= 0) && (inputrec->tpizmax <= state_global->box[ZZ][ZZ]) ) || fr->ePBC != epbcXYZ) {
+        if ( ( (inputrec->tpizmax >= 0) && (inputrec->tpizmax <= state_global->box[ZZ][ZZ]) ) || fr->pbcType != PbcType::Xyz) {
             zmax = inputrec->tpizmax;
         }
         if (zmin > zmax) {

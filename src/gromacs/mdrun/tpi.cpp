@@ -434,7 +434,7 @@ void LegacySimulator::do_tpi()
             gmx_fatal(FARGS,"Cannot insert from %f to %f\n",zmin,zmax);
         }
         else {
-            fprintf(stderr, "Test Particle Insertion from zmin: %f to zmax: %f\n",zmin,zmax);
+            fprintf(stderr, "Disstest: Test Particle Insertion from zmin: %f to zmax: %f\n",zmin,zmax);
         }
         /* What is this for?
         * if (drmax < (zmax-zmin)) {
@@ -743,11 +743,13 @@ void LegacySimulator::do_tpi()
 
             if (a_tp1 - a_tp0 == 1)
             {
+                fprintf(stderr, "Single Atom mode\n");
                 /* Insert a single atom, just copy the insertion location */
                 copy_rvec(x_tp, x[a_tp0]);
             }
             else if (dissociate)
             {
+                fprintf(stderr, "Dissociation mode\n");
                 /* insert atoms in a residue at independent positions */
                 for (i = a_tp0; i < a_tp1; i++)
                 {
@@ -774,6 +776,7 @@ void LegacySimulator::do_tpi()
             }
             else
             {
+                fprintf(stderr, "Molecule mode\n");
                 /* Copy the coordinates from the top file */
                 for (i = a_tp0; i < a_tp1; i++)
                 {

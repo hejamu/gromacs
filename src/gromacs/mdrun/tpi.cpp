@@ -940,11 +940,9 @@ void LegacySimulator::do_tpi()
                 bin[i]++;
             }
 
-            if (debug)
-            {
-                fprintf(debug, "TPI %7d %12.5e %12.5f %12.5f %12.5f\n", static_cast<int>(step),
+            fprintf(stderr, "TPI %7d %12.5e %12.5f %12.5f %12.5f\n", static_cast<int>(step),
                         epot, x_tp[XX], x_tp[YY], x_tp[ZZ]);
-            }
+
 
             if (dump_pdb && epot <= dump_ener)
             {

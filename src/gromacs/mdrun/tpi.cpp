@@ -932,13 +932,13 @@ void LegacySimulator::do_tpi()
                         epot, x_tp[XX], x_tp[YY], x_tp[ZZ]);
             }
 
-            /* if (dump_pdb && epot <= dump_ener)
-            {*/
+            if (dump_pdb && epot <= dump_ener)
+            {
                 sprintf(str, "t%g_step%d.pdb", t, static_cast<int>(step));
                 sprintf(str2, "t: %f step %d ener: %f", t, static_cast<int>(step), epot);
                 write_sto_conf_mtop(str, str2, top_global, state_global->x.rvec_array(),
                                     state_global->v.rvec_array(), inputrec->pbcType, state_global->box);
-            /*}*/
+            }
 
             step++;
             if ((step / stepblocksize) % cr->nnodes != cr->nodeid)

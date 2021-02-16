@@ -871,18 +871,19 @@ void LegacySimulator::do_tpi()
             }
             if (bEnergyOutOfBounds)
             {
-                if (debug)
-                {
-                    fprintf(stderr,
+                fprintf(stderr,
                             "\n  time %.3f, step %d: non-finite energy %f, using exp(-bU)=0\n", t,
                             static_cast<int>(step), epot);
-                }
+
                 embU = 0;
             }
             else
             {
                 // Exponent argument is fine in SP range, but output can be in DP range
                 embU = exp(static_cast<double>(-beta * epot));
+                fprintf(stderr, "Frame: %7d, step: %7d | embU=%12.5e \n", static_cast<int>(frame), static_cast<int>(step),
+                        embU);
+
                 sum_embU += embU;
                 /* Determine the weighted energy contributions of each energy group */
                 e = 0;
@@ -940,17 +941,17 @@ void LegacySimulator::do_tpi()
                 bin[i]++;
             }
 
-            fprintf(stderr, "TPI %7d %12.5e %12.5f %12.5f %12.5f\n", static_cast<int>(step),
+            fprintf(stderr, "Frame: %7d, step: %7d | epot=%12.5e | insertion at %12.5f %12.5f %12.5f\n", static_cast<int>(frame), static_cast<int>(step),
                         epot, x_tp[XX], x_tp[YY], x_tp[ZZ]);
 
 
-            if (dump_pdb && epot <= dump_ener)
-            {
+            /*if (dump_pdb && epot <= dump_ener)
+            {*/
                 sprintf(str, "t%g_step%d.pdb", t, static_cast<int>(step));
                 sprintf(str2, "t: %f step %d ener: %f", t, static_cast<int>(step), epot);
                 write_sto_conf_mtop(str, str2, top_global, state_global->x.rvec_array(),
                                     state_global->v.rvec_array(), inputrec->pbcType, state_global->box);
-            }
+            /*}*/
 
             step++;
             if ((step / stepblocksize) % cr->nnodes != cr->nodeid)
@@ -966,7 +967,8 @@ void LegacySimulator::do_tpi()
             gmx_sumd(1, &sum_embU, cr);
             gmx_sumd(nener, sum_UgembU, cr);
         }
-
+        fprintf(stderr, "Frame: %7d | sum_embU=%12.5e | V = %12.5e\n", static_cast<int>(frame),
+                sum_embU, V);
         frame++;
         V_all += V;
         VembU_all += V * sum_embU / nsteps;

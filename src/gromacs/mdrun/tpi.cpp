@@ -758,8 +758,22 @@ void LegacySimulator::do_tpi()
                     x_init[1] = dist(rng) * state_global->box[1][1];
                     /* Slab insertion in z-coordinate */
                     x_init[ZZ] = zmin + dist(rng)*(zmax-zmin);
-
-                    copy_rvec(x_init, x[i]);
+                    if (inputrec->nstlist > 1){
+                        do
+                        {
+                            for (d = 0; d < DIM; d++)
+                            {
+                                dx[d] = (2 * dist(rng) - 1) * drmax;
+                            }
+                        } while (norm2(dx) > drmax*drmax &&
+                                 (x_init[ZZ]-dx[ZZ]) >= zmin && (x_init[ZZ]+dx[ZZ]) <= zmax);
+                        rvec_add(x_init, dx, x_tp);
+                    }
+                    else
+                    {
+                        copy_rvec(x_init, x_tp);
+                    }
+                    copy_rvec(x_tp, x[i]);
                 }
 
             }

@@ -589,6 +589,9 @@ void LegacySimulator::do_tpi()
         case eiTPIC: stepblocksize = 1; break;
         default: gmx_fatal(FARGS, "Unknown integrator %s", ei_names[inputrec->eI]);
     }
+    if (dissociate){
+        fprintf(stderr, "Dissociation mode\n");
+    }
 
     while (bNotLastFrame)
     {
@@ -743,13 +746,11 @@ void LegacySimulator::do_tpi()
 
             if (a_tp1 - a_tp0 == 1)
             {
-                fprintf(stderr, "Single Atom mode\n");
                 /* Insert a single atom, just copy the insertion location */
                 copy_rvec(x_tp, x[a_tp0]);
             }
             else if (dissociate)
             {
-                fprintf(stderr, "Dissociation mode\n");
                 /* insert atoms in a residue at independent positions */
                 for (i = a_tp0; i < a_tp1; i++)
                 {
@@ -769,14 +770,17 @@ void LegacySimulator::do_tpi()
                         } while (norm2(dx) > drmax*drmax &&
                                  (x_init[ZZ]-dx[ZZ]) >= zmin && (x_init[ZZ]+dx[ZZ]) <= zmax);
                         rvec_add(x_init, dx, x_tp);
+                        copy_rvec(x_tp, x[i - a_tp0]);
                     }
-                    copy_rvec(x_tp, x[i - a_tp0]);
+                    else{
+                        copy_rvec(x_init, x[i - a_tp0]);
+                    }
+
                 }
 
             }
             else
             {
-                fprintf(stderr, "Molecule mode\n");
                 /* Copy the coordinates from the top file */
                 for (i = a_tp0; i < a_tp1; i++)
                 {

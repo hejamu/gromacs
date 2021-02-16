@@ -873,7 +873,7 @@ void LegacySimulator::do_tpi()
             {
                 if (debug)
                 {
-                    fprintf(debug,
+                    fprintf(stderr,
                             "\n  time %.3f, step %d: non-finite energy %f, using exp(-bU)=0\n", t,
                             static_cast<int>(step), epot);
                 }

@@ -175,7 +175,7 @@ void LegacySimulator::do_tpi()
     tensor            force_vir, shake_vir, vir, pres;
     int               a_tp0, a_tp1, ngid, gid_tp, nener, e;
     rvec*             x_mol;
-    rvec              mu_tot, x_init, dx;
+    rvec              mu_tot, x_init, x_init2, dx;
     int               nnodes, frame;
     int64_t           frame_step_prev, frame_step;
     int64_t           nsteps, stepblocksize = 0, step;
@@ -194,6 +194,7 @@ void LegacySimulator::do_tpi()
     auto              mdatoms     = mdAtoms->mdatoms();
     double            zmin=0, zmax=state_global->box[ZZ][ZZ];
     gmx_bool          dissociate;
+
 
     GMX_UNUSED_VALUE(outputProvider);
 
@@ -559,6 +560,7 @@ void LegacySimulator::do_tpi()
         sfree(leg);
     }
     clear_rvec(x_init);
+    clear_rvec(x_init2);
     V_all     = 0;
     VembU_all = 0;
 
@@ -595,6 +597,7 @@ void LegacySimulator::do_tpi()
 
     while (bNotLastFrame)
     {
+        /*fprintf(stderr, "============= Frame: %7d ===============\r", static_cast<int>(frame));*/
         frame_step = rerun_fr.step;
         if (frame_step <= frame_step_prev)
         {
@@ -628,6 +631,7 @@ void LegacySimulator::do_tpi()
         V    = det(box);
         logV = log(V);
 
+
         bStateChanged = TRUE;
         bNS           = TRUE;
 
@@ -642,6 +646,7 @@ void LegacySimulator::do_tpi()
         step = cr->nodeid * stepblocksize;
         while (step < nsteps)
         {
+            /*fprintf(stderr, "-> Step: %7d > ", static_cast<int>(step));*/
             /* Restart random engine using the frame and insertion step
              * as counters.
              * Note that we need to draw several random values per iteration,
@@ -663,7 +668,7 @@ void LegacySimulator::do_tpi()
                     x_init[0] = dist(rng) * state_global->box[0][0];
                     x_init[1] = dist(rng) * state_global->box[1][1];
                     /* Slab insertion in z-coordinate */
-                    x_init[ZZ] = zmin + dist(rng)*(zmax-zmin);
+                    x_init[ZZ] = zmin + dist(rng) * (zmax - zmin);
                 }
             }
             else
@@ -700,16 +705,42 @@ void LegacySimulator::do_tpi()
                 }
             }
 
+
+            if (dissociate) {
+                /* insert atoms in a residue at independent positions */
+
+                x_init2[0] = dist(rng) * state_global->box[0][0];
+                x_init2[1] = dist(rng) * state_global->box[1][1];
+                /* Slab insertion in z-coordinate */
+                x_init2[ZZ] = zmin + dist(rng) * (zmax - zmin);
+            }
+
             if (bNS)
             {
-                for (int a = a_tp0; a < a_tp1; a++)
-                {
-                    x[a] = x_init;
+                if (!dissociate){
+                    for (int a = a_tp0; a < a_tp1; a++)
+                    {
+                        x[a] = x_init;
+                    }
+                    /* Put the inserted molecule on it's own search grid */
+                    nbnxn_put_on_grid(fr->nbv.get(), box, 1,  x_init, x_init, nullptr, { a_tp0, a_tp1 },
+                                      -1, fr->cginfo, x, 0, nullptr);
                 }
+                else {
 
-                /* Put the inserted molecule on it's own search grid */
-                nbnxn_put_on_grid(fr->nbv.get(), box, 1, x_init, x_init, nullptr, { a_tp0, a_tp1 },
-                                  -1, fr->cginfo, x, 0, nullptr);
+                    x[a_tp0] = x_init;
+                    x[a_tp1] = x_init2;
+                    /*fprintf(stderr, "| insert at (%2.1f, %2.1f, %2.1f) and (%2.1f, %2.1f, %2.1f)... ", x_init[0], x_init[1], x_init[2], x_init2[0], x_init2[1],x_init2[2]);
+                    fprintf(stderr, "| length: x_init=%2.1f, x_init2=%2.1f... ", norm2(x_init), norm2(x_init2));
+                    */
+
+                        nbnxn_put_on_grid(fr->nbv.get(), box, 1,vzero, boxDiagonal, nullptr, { a_tp0, a_tp1 },
+                                          -1, fr->cginfo, x, 0, nullptr);
+
+
+                    /*fprintf(stderr, "| put on grid finished... ");*/
+
+                }
 
                 /* TODO: Avoid updating all atoms at every bNS step */
                 fr->nbv->setAtomProperties(gmx::constArrayRefFromArray(mdatoms->typeA, mdatoms->nr),
@@ -725,6 +756,7 @@ void LegacySimulator::do_tpi()
              * of radius rtpi. We don't need to do this is we generate
              * a new center location every step.
              */
+
             rvec x_tp;
             if (bCavity || inputrec->nstlist > 1)
             {
@@ -751,31 +783,7 @@ void LegacySimulator::do_tpi()
             }
             else if (dissociate)
             {
-                /* insert atoms in a residue at independent positions */
-                for (i = a_tp0; i < a_tp1; i++)
-                {
-                    x_init[0] = dist(rng) * state_global->box[0][0];
-                    x_init[1] = dist(rng) * state_global->box[1][1];
-                    /* Slab insertion in z-coordinate */
-                    x_init[ZZ] = zmin + dist(rng)*(zmax-zmin);
-                    if (inputrec->nstlist > 1){
-                        do
-                        {
-                            for (d = 0; d < DIM; d++)
-                            {
-                                dx[d] = (2 * dist(rng) - 1) * drmax;
-                            }
-                        } while (norm2(dx) > drmax*drmax &&
-                                 (x_init[ZZ]-dx[ZZ]) >= zmin && (x_init[ZZ]+dx[ZZ]) <= zmax);
-                        rvec_add(x_init, dx, x_tp);
-                    }
-                    else
-                    {
-                        copy_rvec(x_init, x_tp);
-                    }
-                    copy_rvec(x_tp, x[i]);
-                }
-
+                /* Do nothing */
             }
             else
             {
@@ -879,12 +887,12 @@ void LegacySimulator::do_tpi()
             }
             else
             {
+                /*fprintf(stderr, "| epot=%12.5e ", epot);*/
                 // Exponent argument is fine in SP range, but output can be in DP range
                 embU = exp(static_cast<double>(-beta * epot));
-                fprintf(stderr, "Frame: %7d, step: %7d | embU=%12.5e \n", static_cast<int>(frame), static_cast<int>(step),
-                        embU);
-
+                /*fprintf(stderr, "| embU=%12.5e ",embU);*/
                 sum_embU += embU;
+                /*fprintf(stderr, "| sum_embU=%12.5e \n",sum_embU);*/
                 /* Determine the weighted energy contributions of each energy group */
                 e = 0;
                 sum_UgembU[e++] += epot * embU;
@@ -941,17 +949,16 @@ void LegacySimulator::do_tpi()
                 bin[i]++;
             }
 
-            fprintf(stderr, "Frame: %7d, step: %7d | epot=%12.5e | insertion at %12.5f %12.5f %12.5f\n", static_cast<int>(frame), static_cast<int>(step),
-                        epot, x_tp[XX], x_tp[YY], x_tp[ZZ]);
 
 
-            /*if (dump_pdb && epot <= dump_ener)
-            {*/
+
+            if (dump_pdb && epot <= dump_ener)
+            {
                 sprintf(str, "t%g_step%d.pdb", t, static_cast<int>(step));
                 sprintf(str2, "t: %f step %d ener: %f", t, static_cast<int>(step), epot);
                 write_sto_conf_mtop(str, str2, top_global, state_global->x.rvec_array(),
                                     state_global->v.rvec_array(), inputrec->pbcType, state_global->box);
-            /*}*/
+            }
 
             step++;
             if ((step / stepblocksize) % cr->nnodes != cr->nodeid)
@@ -967,17 +974,18 @@ void LegacySimulator::do_tpi()
             gmx_sumd(1, &sum_embU, cr);
             gmx_sumd(nener, sum_UgembU, cr);
         }
-        fprintf(stderr, "Frame: %7d | sum_embU=%12.5e | V = %12.5e\n", static_cast<int>(frame),
-                sum_embU, V);
+
         frame++;
+        if (std::isfinite(sum_embU)){
+            VembU_all += V * sum_embU / nsteps;
+        }
         V_all += V;
-        VembU_all += V * sum_embU / nsteps;
 
         if (fp_tpi)
         {
             if (mdrunOptions.verbose || frame % 10 == 0 || frame < 10)
             {
-                fprintf(stderr, "mu %10.3e <mu> %10.3e\n", -log(sum_embU / nsteps) / beta,
+                fprintf(stderr, "Frame %5d: mu %10.3e <mu> %10.3e \r", static_cast<int>(frame), -log(sum_embU / nsteps) / beta,
                         -log(VembU_all / V_all) / beta);
             }
 
@@ -1042,6 +1050,10 @@ void LegacySimulator::do_tpi()
         }
         xvgrclose(fp_tpi);
     }
+    fprintf(stderr, "\n");
+    fprintf(stderr, "  <V>  = %12.5e nm^3\n", V_all / frame);
+    const double mu = -log(VembU_all / V_all) / beta;
+    fprintf(stderr, "  <mu> = %12.5e kJ/mol\n", mu);
     sfree(bin);
 
     sfree(sum_UgembU);

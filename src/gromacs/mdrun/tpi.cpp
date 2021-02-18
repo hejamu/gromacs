@@ -708,7 +708,6 @@ void LegacySimulator::do_tpi()
 
             if (dissociate) {
                 /* insert atoms in a residue at independent positions */
-
                 x_init2[0] = dist(rng) * state_global->box[0][0];
                 x_init2[1] = dist(rng) * state_global->box[1][1];
                 /* Slab insertion in z-coordinate */
@@ -976,9 +975,7 @@ void LegacySimulator::do_tpi()
         }
 
         frame++;
-        if (std::isfinite(sum_embU)){
-            VembU_all += V * sum_embU / nsteps;
-        }
+        VembU_all += V * sum_embU / nsteps;
         V_all += V;
 
         if (fp_tpi)

@@ -183,10 +183,8 @@ void LegacySimulator::do_tpi()
     int               i;
     FILE*             fp_tpi = nullptr;
     char *            ptr, *dump_pdb, **leg, str[STRLEN], str2[STRLEN];
-    double            dbl, dump_ener;
-    gmx_bool          bCavity;
-    int               nat_cavity  = 0, d;
-    real *            mass_cavity = nullptr, mass_tot;
+    double            dump_ener;
+    int               d;
     int               nbin;
     double            invbinw, *bin, refvolshift, logV, bUlogV;
     gmx_bool          bEnergyOutOfBounds;
@@ -224,35 +222,6 @@ void LegacySimulator::do_tpi()
     gmx_mtop_generate_local_top(*top_global, &top, inputrec->efep != efepNO);
 
     const SimulationGroups* groups = &top_global->groups;
-
-    bCavity = (inputrec->eI == eiTPIC);
-    if (bCavity)
-    {
-        ptr = getenv("GMX_TPIC_MASSES");
-        if (ptr == nullptr)
-        {
-            nat_cavity = 1;
-        }
-        else
-        {
-            /* Read (multiple) masses from env var GMX_TPIC_MASSES,
-             * The center of mass of the last atoms is then used for TPIC.
-             */
-            nat_cavity = 0;
-            while (sscanf(ptr, "%20lf%n", &dbl, &i) > 0)
-            {
-                srenew(mass_cavity, nat_cavity + 1);
-                mass_cavity[nat_cavity] = dbl;
-                fprintf(fplog, "mass[%d] = %f\n", nat_cavity + 1, mass_cavity[nat_cavity]);
-                nat_cavity++;
-                ptr += i;
-            }
-            if (nat_cavity == 0)
-            {
-                gmx_fatal(FARGS, "Found %d masses in GMX_TPIC_MASSES", nat_cavity);
-            }
-        }
-    }
 
     /*
        init_em(fplog,TPI,inputrec,&lambda,nrnb,mu_tot,
@@ -367,22 +336,14 @@ void LegacySimulator::do_tpi()
     molRadius = std::sqrt(molRadius);
 
     const real maxCutoff = std::max(inputrec->rvdw, inputrec->rcoulomb);
-    if (bCavity)
+
+
+    /* Center the molecule to be inserted at zero */
+    for (i = 0; i < a_tp1 - a_tp0; i++)
     {
-        if (norm(cog) > 0.5 * maxCutoff && fplog)
-        {
-            fprintf(fplog, "WARNING: Your TPI molecule is not centered at 0,0,0\n");
-            fprintf(stderr, "WARNING: Your TPI molecule is not centered at 0,0,0\n");
-        }
+        rvec_dec(x_mol[i], cog);
     }
-    else
-    {
-        /* Center the molecule to be inserted at zero */
-        for (i = 0; i < a_tp1 - a_tp0; i++)
-        {
-            rvec_dec(x_mol[i], cog);
-        }
-    }
+
 
     if (fplog)
     {
@@ -393,38 +354,27 @@ void LegacySimulator::do_tpi()
                 opt2fn("-rerun", nfile, fnm));
     }
 
-    if (!bCavity)
+    if (inputrec->nstlist > 1)
     {
-        if (inputrec->nstlist > 1)
-        {
 
-            /* With the same pair list we insert in a sphere of radius rtpi  in different orientations */
-            if (drmax == 0 && a_tp1 - a_tp0 == 1)
-            {
-                gmx_fatal(FARGS,
-                          "Re-using the neighborlist %d times for insertions of a single atom in a "
-                          "sphere of radius %f does not make sense",
-                          inputrec->nstlist, drmax);
-            }
-            if (fplog)
-            {
-                fprintf(fplog,
-                        "Will use the same neighborlist for %d insertions in a sphere of radius "
-                        "%f\n",
-                        inputrec->nstlist, drmax);
-            }
+        /* With the same pair list we insert in a sphere of radius rtpi  in different orientations */
+        if (drmax == 0 && a_tp1 - a_tp0 == 1)
+        {
+            gmx_fatal(FARGS,
+                      "Re-using the neighborlist %d times for insertions of a single atom in a "
+                      "sphere of radius %f does not make sense",
+                      inputrec->nstlist, drmax);
         }
-    }
-    else
-    {
         if (fplog)
         {
             fprintf(fplog,
-                    "Will insert randomly in a sphere of radius %f around the center of the "
-                    "cavity\n",
-                    drmax);
+                    "Will use the same neighborlist for %d insertions in a sphere of radius "
+                    "%f\n",
+                    inputrec->nstlist, drmax);
         }
     }
+
+
 
     /* With the same pair list we insert in a sphere of radius rtpi
      * in different orientations. We generate the pairlist with all
@@ -541,13 +491,13 @@ void LegacySimulator::do_tpi()
     bNotLastFrame = read_first_frame(oenv, &status, opt2fn("-rerun", nfile, fnm), &rerun_fr, TRX_NEED_X);
     frame         = 0;
 
-    if (rerun_fr.natoms - (bCavity ? nat_cavity : 0) != mdatoms->nr - (a_tp1 - a_tp0))
+    if (rerun_fr.natoms != mdatoms->nr - (a_tp1 - a_tp0))
     {
         gmx_fatal(FARGS,
-                  "Number of atoms in trajectory (%d)%s "
+                  "Number of atoms in trajectory (%d) "
                   "is not equal the number in the run input file (%d) "
                   "minus the number of atoms to insert (%d)\n",
-                  rerun_fr.natoms, bCavity ? " minus one" : "", mdatoms->nr, a_tp1 - a_tp0);
+                  rerun_fr.natoms, mdatoms->nr, a_tp1 - a_tp0);
     }
 
     refvolshift = log(det(rerun_fr.box));
@@ -619,62 +569,22 @@ void LegacySimulator::do_tpi()
             rng.restart(frame_step, step);
             dist.reset(); // erase any memory in the distribution
 
-            if (!bCavity)
+            /* Random insertion in the whole volume */
+            bNS = (step % inputrec->nstlist == 0);
+            if (bNS)
             {
-                /* Random insertion in the whole volume */
-                bNS = (step % inputrec->nstlist == 0);
-                if (bNS)
+                /* Generate a random position in the box */
+                for (int a = a_tp0; a < a_tp1; a++)
                 {
-                    /* Generate a random position in the box */
                     for (d = 0; d < DIM; d++)
                     {
                         x_init[d] = dist(rng) * state_global->box[d][d];
                     }
-                }
-            }
-            else
-            {
-                /* Random insertion around a cavity location
-                 * given by the last coordinate of the trajectory.
-                 */
-                if (step == 0)
-                {
-                    if (nat_cavity == 1)
-                    {
-                        /* Copy the location of the cavity */
-                        copy_rvec(rerun_fr.x[rerun_fr.natoms - 1], x_init);
-                    }
-                    else
-                    {
-                        /* Determine the center of mass of the last molecule */
-                        clear_rvec(x_init);
-                        mass_tot = 0;
-                        for (i = 0; i < nat_cavity; i++)
-                        {
-                            for (d = 0; d < DIM; d++)
-                            {
-                                x_init[d] += mass_cavity[i]
-                                             * rerun_fr.x[rerun_fr.natoms - nat_cavity + i][d];
-                            }
-                            mass_tot += mass_cavity[i];
-                        }
-                        for (d = 0; d < DIM; d++)
-                        {
-                            x_init[d] /= mass_tot;
-                        }
-                    }
-                }
-            }
-
-            if (bNS)
-            {
-                for (int a = a_tp0; a < a_tp1; a++)
-                {
                     x[a] = x_init;
                 }
 
                 /* Put the inserted molecule on it's own search grid */
-                nbnxn_put_on_grid(fr->nbv.get(), box, 1, x_init, x_init, nullptr, { a_tp0, a_tp1 },
+                nbnxn_put_on_grid(fr->nbv.get(), box, 1, vzero, boxDiagonal, nullptr, { a_tp0, a_tp1 },
                                   -1, fr->cginfo, x, 0, nullptr);
 
                 /* TODO: Avoid updating all atoms at every bNS step */
@@ -685,53 +595,6 @@ void LegacySimulator::do_tpi()
                 fr->nbv->constructPairlist(InteractionLocality::Local, top.excls, step, nrnb);
 
                 bNS = FALSE;
-            }
-
-            /* Add random displacement uniformly distributed in a sphere
-             * of radius rtpi. We don't need to do this is we generate
-             * a new center location every step.
-             */
-            rvec x_tp;
-            if (bCavity || inputrec->nstlist > 1)
-            {
-                /* Generate coordinates within |dx|=drmax of x_init */
-                do
-                {
-                    for (d = 0; d < DIM; d++)
-                    {
-                        dx[d] = (2 * dist(rng) - 1) * drmax;
-                    }
-                } while (norm2(dx) > drmax * drmax);
-                rvec_add(x_init, dx, x_tp);
-            }
-            else
-            {
-                copy_rvec(x_init, x_tp);
-            }
-
-            if (a_tp1 - a_tp0 == 1)
-            {
-                /* Insert a single atom, just copy the insertion location */
-                copy_rvec(x_tp, x[a_tp0]);
-            }
-            else
-            {
-                /* Copy the coordinates from the top file */
-                for (i = a_tp0; i < a_tp1; i++)
-                {
-                    copy_rvec(x_mol[i - a_tp0], x[i]);
-                }
-                /* Rotate the molecule randomly */
-                real angleX = 2 * M_PI * dist(rng);
-                real angleY = 2 * M_PI * dist(rng);
-                real angleZ = 2 * M_PI * dist(rng);
-                rotate_conf(a_tp1 - a_tp0, state_global->x.rvec_array() + a_tp0, nullptr, angleX,
-                            angleY, angleZ);
-                /* Shift to the insertion location */
-                for (i = a_tp0; i < a_tp1; i++)
-                {
-                    rvec_inc(x[i], x_tp);
-                }
             }
 
             /* Note: NonLocal refers to the inserted molecule */
@@ -877,10 +740,8 @@ void LegacySimulator::do_tpi()
                 bin[i]++;
             }
 
-            if (debug)
-            {
-                fprintf(debug, "TPI %7d %12.5e %12.5f %12.5f %12.5f\n", static_cast<int>(step),
-                        epot, x_tp[XX], x_tp[YY], x_tp[ZZ]);
+            if (epot<0){
+                fprintf(stderr, "TPI %7d %12.5e\n", static_cast<int>(step), epot);
             }
 
             if (dump_pdb && epot <= dump_ener)

@@ -632,11 +632,12 @@ void LegacySimulator::do_tpi()
                 bNS = (step % inputrec->nstlist == 0);
                 if (bNS)
                 {
+
                     /* Generate a random position in the box */
                     x_init[0] = dist(rng) * state_global->box[0][0];
                     x_init[1] = dist(rng) * state_global->box[1][1];
                     /* Slab insertion in z-coordinate */
-                    if (inputrec->tpizmax > state_global->box[ZZ][ZZ]) {
+                    if (inputrec->tpizmax > state_global->box[ZZ][ZZ]  || inputrec->tpizmax == NULL) {
                         zmax = state_global->box[ZZ][ZZ];
                     }
                     else {

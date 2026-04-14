@@ -89,6 +89,7 @@ LeapFrogTestData::LeapFrogTestData(int        numAtoms,
                        0.0,
                        false,
                        0.0,
+                       0,
                        1),
     numTCoupleGroups_(numTCoupleGroups)
 {

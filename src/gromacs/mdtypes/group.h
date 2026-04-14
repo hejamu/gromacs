@@ -129,6 +129,7 @@ public:
                    real                       ensembleTemperature,
                    bool                       haveBoxDeformation,
                    real                       cosineAcceleration,
+                   int                        numAccelerationGroups,
                    int                        numThreads);
 
     //! Returns the number of T-coupling groups
@@ -215,6 +216,12 @@ public:
     std::vector<std::unique_ptr<SystemMomentum>> systemMomentumWork;
     //! Cosine acceleration data
     t_cos_acc cosacc;
+    //! Mass-weighted velocity (momentum) per constant-acceleration group, local contribution for MPI reduction
+    std::vector<gmx::RVec> accelerationGroupMomentum;
+    //! Total mass per constant-acceleration group, local contribution for MPI reduction
+    std::vector<real> accelerationGroupMass;
+    //! Mean velocity per constant-acceleration group (computed from momentum/mass after MPI reduction)
+    std::vector<gmx::RVec> accelerationGroupMeanVelocity;
     //! Last step at which kinetic energy terms were accumulated over the ranks
     int64_t lastComputeGlobalsStep = -2;
 

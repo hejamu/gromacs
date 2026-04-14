@@ -216,7 +216,7 @@ public:
     TestReferenceChecker checker_;
 
     EnergyOutputTest() :
-        ekindata_(tcgInit_, EnsembleTemperatureSetting::NotAvailable, -1.0_real, false, cosAccel_, 1),
+        ekindata_(tcgInit_, EnsembleTemperatureSetting::NotAvailable, -1.0_real, false, cosAccel_, 0, 1),
         mpiComm_(MpiComm(MpiComm::SingleRank{})),
         logFilename_(fileManager_.getTemporaryFilePath(".log").string()),
         edrFilename_(fileManager_.getTemporaryFilePath(".edr").string()),

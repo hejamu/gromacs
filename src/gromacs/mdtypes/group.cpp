@@ -51,6 +51,7 @@ gmx_ekindata_t::gmx_ekindata_t(gmx::ArrayRef<const real>        referenceTempera
                                const real                       ensembleTemperature,
                                const bool                       haveBoxDeformation,
                                const real                       cosineAcceleration,
+                               const int                        numAccelerationGroups,
                                const int                        numThreads) :
     currentReferenceTemperature_(referenceTemperature.begin(), referenceTemperature.end()),
     ensembleTemperatureSetting_(ensembleTemperatureSetting),
@@ -110,4 +111,8 @@ gmx_ekindata_t::gmx_ekindata_t(gmx::ArrayRef<const real>        referenceTempera
     }
 
     cosacc.cos_accel = cosineAcceleration;
+
+    accelerationGroupMomentum.resize(numAccelerationGroups, gmx::RVec{ 0, 0, 0 });
+    accelerationGroupMass.resize(numAccelerationGroups, 0.0_real);
+    accelerationGroupMeanVelocity.resize(numAccelerationGroups, gmx::RVec{ 0, 0, 0 });
 }

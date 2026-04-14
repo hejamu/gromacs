@@ -638,7 +638,9 @@ static void updateMDLeapfrogGeneral(int                                 start,
                 {
                     ga = cAcceleration[n];
                 }
-                /* With constant acceleration we do scale the velocity of the accelerated groups */
+                /* Subtract the group mean velocity (drift) so T-coupling acts only on thermal
+                 * motion, not the coherent drift — analogous to the cosine-profile treatment */
+                vRel -= ekind->accelerationGroupMeanVelocity[ga];
                 break;
             case AccelerationType::Cosine:
                 cosineZ = std::cos(x[n][ZZ] * omega_Z);
@@ -675,8 +677,8 @@ static void updateMDLeapfrogGeneral(int                                 start,
             {
                 case AccelerationType::None: break;
                 case AccelerationType::Group:
-                    /* Apply the constant acceleration */
-                    vNew += acceleration[ga][d] * dt;
+                    /* Add back the group mean velocity and apply the constant acceleration */
+                    vNew += ekind->accelerationGroupMeanVelocity[ga][d] + acceleration[ga][d] * dt;
                     break;
                 case AccelerationType::Cosine:
                     if (d == XX)

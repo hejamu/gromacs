@@ -154,6 +154,16 @@ static void calc_ke_part_normal(const matrix                   deform,
         ekind->systemMomenta->momentumHalfStep.clear();
     }
 
+    // Clear per-acceleration-group momentum and mass accumulators for fresh accumulation below
+    if (!ekind->accelerationGroupMomentum.empty())
+    {
+        std::fill(ekind->accelerationGroupMomentum.begin(),
+                  ekind->accelerationGroupMomentum.end(),
+                  gmx::RVec{ 0, 0, 0 });
+        std::fill(
+                ekind->accelerationGroupMass.begin(), ekind->accelerationGroupMass.end(), 0.0_real);
+    }
+
     const int nthread = gmx_omp_nthreads_get(ModuleMultiThread::Update);
 
 #pragma omp parallel for num_threads(nthread) schedule(static)
@@ -208,6 +218,14 @@ static void calc_ke_part_normal(const matrix                   deform,
                     vn[d] -= iprod(x[n], deformFlowMatrix[d]);
                 }
             }
+            // Subtract the group mean velocity (drift from constant acceleration) so the
+            // thermostat only acts on thermal motion, not the coherent drift.
+            // Uses the mean velocity from the previous step (one-step lag, same as vcos).
+            if (!ekind->accelerationGroupMeanVelocity.empty())
+            {
+                const int ga = !md->cACC.empty() ? md->cACC[n] : 0;
+                vn -= ekind->accelerationGroupMeanVelocity[ga];
+            }
 
             for (d = 0; (d < DIM); d++)
             {
@@ -231,6 +249,23 @@ static void calc_ke_part_normal(const matrix                   deform,
             {
                 systemMomentumWork->mass += md->massT[n];
             }
+        }
+    }
+
+    // Accumulate mass-weighted velocity (momentum) per acceleration group from raw velocities.
+    // This uses the raw v[n], not the drift-corrected vn, so the mean reflects the actual group
+    // velocity (drift + thermal). After MPI reduction, accelerationGroupMeanVelocity is updated.
+    if (!ekind->accelerationGroupMomentum.empty())
+    {
+        int ga = 0;
+        for (int n = 0; n < md->homenr; n++)
+        {
+            if (!md->cACC.empty())
+            {
+                ga = md->cACC[n];
+            }
+            ekind->accelerationGroupMomentum[ga] += md->massT[n] * v[n];
+            ekind->accelerationGroupMass[ga] += md->massT[n];
         }
     }
 
@@ -545,6 +580,16 @@ void compute_globals(gmx_global_stat*               gstat,
     {
         /* Calculate the amplitude of the cosine velocity profile */
         ekind->cosacc.vcos = ekind->cosacc.mvcos / mdatoms->tmass;
+
+        /* Compute mean velocity per constant-acceleration group from reduced momentum and mass */
+        for (int g = 0; g < gmx::ssize(ekind->accelerationGroupMomentum); g++)
+        {
+            if (ekind->accelerationGroupMass[g] > 0)
+            {
+                ekind->accelerationGroupMeanVelocity[g] =
+                        ekind->accelerationGroupMomentum[g] / ekind->accelerationGroupMass[g];
+            }
+        }
     }
 
     if (bTemp)

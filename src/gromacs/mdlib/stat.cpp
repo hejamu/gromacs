@@ -162,6 +162,7 @@ void global_stat(const gmx_global_stat&   gs,
 {
     int ie = 0, ifv = 0, isv = 0;
     int idedl = 0, idedlo = 0, idvdll = 0, idvdlnl = 0, iepl = 0, icm = 0, imass = 0, ica = 0;
+    int iAccMomentum = 0, iAccMass = 0;
     int iMomentumOld = 0;
     int iMomentum    = 0;
     int isig         = -1;
@@ -236,6 +237,13 @@ void global_stat(const gmx_global_stat&   gs,
             if (ekind->cosacc.cos_accel != 0)
             {
                 ica = add_binr(rb, 1, &(ekind->cosacc.mvcos));
+            }
+            if (!ekind->accelerationGroupMomentum.empty())
+            {
+                const int numAccGroups = gmx::ssize(ekind->accelerationGroupMomentum);
+                iAccMomentum = add_binr(
+                        rb, DIM * numAccGroups, reinterpret_cast<real*>(ekind->accelerationGroupMomentum.data()));
+                iAccMass = add_binr(rb, numAccGroups, ekind->accelerationGroupMass.data());
             }
 
             if (ekind->systemMomenta)
@@ -355,6 +363,15 @@ void global_stat(const gmx_global_stat&   gs,
             if (ekind->cosacc.cos_accel != 0)
             {
                 extract_binr(rb, ica, 1, &(ekind->cosacc.mvcos));
+            }
+            if (!ekind->accelerationGroupMomentum.empty())
+            {
+                const int numAccGroups = gmx::ssize(ekind->accelerationGroupMomentum);
+                extract_binr(rb,
+                             iAccMomentum,
+                             DIM * numAccGroups,
+                             reinterpret_cast<real*>(ekind->accelerationGroupMomentum.data()));
+                extract_binr(rb, iAccMass, numAccGroups, ekind->accelerationGroupMass.data());
             }
 
             if (ekind->systemMomenta)

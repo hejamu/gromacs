@@ -2247,6 +2247,9 @@ int Mdrunner::mdrunner()
                                  inputrec->ensembleTemperature,
                                  fr->haveBoxDeformation,
                                  inputrec->cos_accel,
+                                 inputrec->useConstantAcceleration
+                                         ? gmx::ssize(inputrec->opts.acceleration)
+                                         : 0,
                                  gmx_omp_nthreads_get(ModuleMultiThread::Update));
 
             /* Set up interactive MD (IMD) */
